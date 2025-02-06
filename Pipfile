@@ -7,6 +7,8 @@ name = "pypi"
 pyusb = "*"
 pyvisa = "*"
 pyvisa-py = "*"
+pandas = "*"
+matplotlib = "*"
 
 [dev-packages]
 
