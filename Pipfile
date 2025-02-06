@@ -5,6 +5,11 @@ name = "pypi"
 
 [packages]
 pyvisa = "*"
+pyvisa-py = "*"
+pyusb = "*"
+libusb = "*"
+psutil = "*"
+zeroconf = "*"
 
 [dev-packages]
 

@@ -14,49 +14,61 @@ import pyvisa
 def main():
     rm = None
     device = None
-    try:
-        #Opens a resource manager
-        rm = pyvisa.ResourceManager()
 
-        rm.list_resources()
+    #Opens a resource manager
+    rm = pyvisa.ResourceManager('@py')
+    # rm = pyvisa.ResourceManager()
 
-        #Opens the connection to the device. The variable instr is the handle for the device.
-        # !!! In the USB number the serial number (P00...) and PID (0x8078) needs to be changed to the one of the connected device.
-        #Check with the Windows DEvice Manager
-        instr = rm.open_resource('USB0::0x1313::0x8078::P0007837::INSTR')
-        
-        #print the device information
-        print(instr.query("SYST:SENS:IDN?"))
-        
-        #turn on auto-ranging
-        instr.write("SENS:RANGE:AUTO ON")
-        #set wavelength setting, so the correct calibration point is used
-        instr.write("SENS:CORR:WAV 1310")
-        #set units to Watts
-        instr.write("SENS:POW:UNIT W")
-        #set averaging to 1000 points
-        instr.write("SENS:AVER:1000")
+    res_found = rm.list_resources('USB0::4883::32888::P0010673::0::INSTR')
+    # res_found = rm.list_resources('ASRL3::INSTR')
 
-        #read the power
-        print (instr.query("MEAS:POW?"))
+    #Opens the connection to the device. The variable instr is the handle for the device.
+    # !!! In the USB number the serial number (P00...) and PID (0x8078) needs to be changed to the one of the connected device.
+    #Check with the Windows DEvice Manager
+   
+    # Connect to the power meter, make it beep, and ask it for its ID
+    print('Connecting to PM100D...')
+    meter = rm.open_resource(res_found[0])
+    meter.read_termination = '\n'
+    meter.write_termination = '\n'
+    meter.timeout = 3000  # ms
 
-    finally:
-        #Close device in any case
-        if device is not None:
-            try:
-                device.close()
-            except Exception:
-                pass
+    meter.write('system:beeper')
 
-        #Close resource manager in any case
-        if rm is not None:
-            try:
-                instr.close()
-            except Exception:
-                pass
+    print('*idn?')
+    print('--> ' + meter.query('*idn?'))
+    
+    # #print the device information
+    # print(instr.query("SYST:SENS:IDN?"))
+    
+    # #turn on auto-ranging
+    # instr.write("SENS:RANGE:AUTO ON")
+    #set wavelength setting, so the correct calibration point is used
+    meter.write("SENS:CORR:WAV 1310")
+    #set units to Watts
+    meter.write("SENS:POW:UNIT W")
+    #set averaging to 1000 points
+    meter.write("SENS:AVER:1000")
 
-        #close out session
-        rm.close()
+    #read the power
+    print (meter.query("MEAS:POW?"))
+
+    #Close device in any case
+    if device is not None:
+        try:
+            device.close()
+        except Exception:
+            pass
+
+    #Close resource manager in any case
+    if rm is not None:
+        try:
+            meter.close()
+        except Exception:
+            pass
+
+    #close out session
+    rm.close()
 
 if __name__ == "__main__":
     main()
