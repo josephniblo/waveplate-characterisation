@@ -4,12 +4,9 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
+pyusb = "*"
 pyvisa = "*"
 pyvisa-py = "*"
-pyusb = "*"
-libusb = "*"
-psutil = "*"
-zeroconf = "*"
 
 [dev-packages]
 
