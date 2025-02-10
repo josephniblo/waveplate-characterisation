@@ -6,9 +6,10 @@ import matplotlib.pyplot as plt
 
 # Known power meter IDs
 PM100D_P0010673 = "USB0::4883::32888::P0010673::0::INSTR"
+PM100D_P0028831 = "USB0::4883::32888::P0028831::0::INSTR"
 
 # Choose the power meter to connect to
-METER_ID = PM100D_P0010673
+METER_ID = PM100D_P0028831
 
 LASER_WAVELENGTH = 1550  # nm
 
@@ -19,6 +20,7 @@ def main():
 
     try:
         rm = pyvisa.ResourceManager("@py")
+        print("Resources: " + str(rm.list_resources()))
         res_found = rm.list_resources(METER_ID)
 
         if len(res_found) == 0:
@@ -44,6 +46,8 @@ def main():
         meter.write("SENS:AVER:1000")
 
         timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
+        print("Calibration timestamp: " + timestamp)
+
         run_calibration("waveplate", meter, timestamp)
         plot_calibration("waveplate", timestamp)
 
