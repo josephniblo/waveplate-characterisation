@@ -2,6 +2,8 @@ import os
 import pyvisa
 import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
+from scipy.optimize import curve_fit
 
 
 # Known power meter IDs
@@ -12,6 +14,12 @@ PM100D_P0028831 = "USB0::4883::32888::P0028831::0::INSTR"
 METER_ID = PM100D_P0028831
 
 LASER_WAVELENGTH = 1550  # nm
+
+
+# enum for waveplate type
+class WaveplateType:
+    HWP = 0
+    QWP = 1
 
 
 def main():
@@ -50,6 +58,7 @@ def main():
 
         run_calibration("waveplate", meter, timestamp)
         plot_calibration("waveplate", timestamp)
+        print(fit_calibration("waveplate", timestamp))
 
     except Exception as e:
         print("Error: " + str(e))
@@ -97,9 +106,7 @@ def save_calibration_point(
     waveplate_name: str, angle: int, power: float, timestamp: str
 ):
     # Create the directory if it doesn't exist
-    os.makedirs(
-        f"calibration_data/{waveplate_name}/{timestamp}", exist_ok=True
-    )
+    os.makedirs(f"calibration_data/{waveplate_name}/{timestamp}", exist_ok=True)
 
     file_path = (
         get_calibration_directory(waveplate_name, timestamp) + "/calibration.csv"
@@ -141,6 +148,84 @@ def plot_calibration(waveplate_name: str, timestamp: str):
     plt.ylabel("Power (W)")
     plt.grid(True)
     plt.savefig(calibration_directory + "/calibration_plot.png")
+
+
+def fit_calibration(waveplate_name: str, timestamp: str):
+    calibration_directory = get_calibration_directory(waveplate_name, timestamp)
+    file_path = calibration_directory + "/calibration.csv"
+
+    # Check if the file exists
+    if not os.path.exists(file_path):
+        print(f"Cannot plot: No calibration data found for {waveplate_name}")
+        return
+
+    # Read the calibration data
+    df = pd.read_csv(file_path)
+
+    # Fit a HWP sinusoid to the calibration data
+    # HWP has period pi
+    def hwp_sinusoid(theta, offset, amplitude, phase):
+        return offset + amplitude * np.sin(2 * 2 * np.pi * (theta - phase) / 360)
+
+    # QWP has period pi/2
+    def qwp_sinusoid(theta, offset, amplitude, phase):
+        return offset + amplitude * np.sin(4 * 2 * np.pi * (theta - phase) / 360)
+
+    # Fit the HWP & QWP sinusoid to the calibration data
+    popt_hwp, pcov_hwp = curve_fit(hwp_sinusoid, df["angle"], df["power"], p0=[1, 1, 0])
+    popt_qwp, pcov_qwp = curve_fit(qwp_sinusoid, df["angle"], df["power"], p0=[1, 1, 0])
+
+    # determine which is the better fit
+    hwp_residuals = df["power"] - hwp_sinusoid(df["angle"], *popt_hwp)
+    qwp_residuals = df["power"] - qwp_sinusoid(df["angle"], *popt_qwp)
+    hwp_residuals = np.sum(hwp_residuals**2)
+    qwp_residuals = np.sum(qwp_residuals**2)
+
+    waveplate_type = None
+    fit_offset = None
+    if hwp_residuals < qwp_residuals:
+        waveplate_type = WaveplateType.HWP
+        fit_offset = popt_hwp[0]
+        fit_amplitude = popt_hwp[1]
+        fit_phase = popt_hwp[2]
+        print("Determined to be HWP")
+    else:
+        waveplate_type = WaveplateType.QWP
+        fit_offset = popt_qwp[0]
+        fit_amplitude = popt_qwp[1]
+        fit_phase = popt_qwp[2]
+        print("Determined to be QWP")
+
+    # Plot the calibration data and the fitted sinusoid
+    plt.figure()
+    plt.plot(df["angle"], df["power"], marker="o", label="Calibration Data")
+    if waveplate_type == WaveplateType.HWP:
+        plt.plot(df["angle"], hwp_sinusoid(df["angle"], *popt_hwp), label="HWP Fit")
+    else:
+        plt.plot(df["angle"], qwp_sinusoid(df["angle"], *popt_qwp), label="QWP Fit")
+
+    plt.title(f"Calibration Data for {waveplate_name}")
+    plt.xlabel("Angle (degrees)")
+    plt.ylabel("Power (W)")
+    plt.grid(True)
+    plt.legend()
+    plt.text(
+        0.95,
+        0.95,
+        f"Offset: {fit_offset:.2f}\nAmplitude: {fit_amplitude:.2f}\nPhase: {fit_phase:.2f}",
+        horizontalalignment="right",
+        verticalalignment="top",
+        transform=plt.gca().transAxes,
+    )
+
+    plt.savefig(calibration_directory + "/calibration_fit.png")
+
+    with open(calibration_directory + "/calibration_fit.json", "w") as f:
+        f.write(
+            f'{{"waveplate_type": {waveplate_type}, "fit_offset": {fit_offset:.2e}, "fit_amplitude": {fit_amplitude:.2e}, "fit_phase": {fit_phase:.2e}}}'
+        )
+
+    return waveplate_type, fit_offset, fit_amplitude, fit_phase
 
 
 def get_calibration_directory(waveplate_name: str, timestamp: str):

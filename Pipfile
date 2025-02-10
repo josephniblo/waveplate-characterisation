@@ -9,6 +9,8 @@ pyvisa = "*"
 pyvisa-py = "*"
 pandas = "*"
 matplotlib = "*"
+scipy = "*"
+numpy = "*"
 
 [dev-packages]
 
