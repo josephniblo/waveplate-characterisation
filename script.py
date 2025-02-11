@@ -1,4 +1,5 @@
 import os
+import warnings
 import pyvisa
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -28,11 +29,20 @@ def main():
 
     try:
         rm = pyvisa.ResourceManager("@py")
-        print("Resources: " + str(rm.list_resources()))
+
+        # Suppress needless warnings
+        warnings.filterwarnings(
+            "ignore",
+            message="TCPIP::hislip resource discovery requires the zeroconf package",
+        )
+        warnings.filterwarnings(
+            "ignore",
+            message="TCPIP:instr resource discovery is limited to the default interface.Install psutil",
+        )
+
         res_found = rm.list_resources(METER_ID)
 
         if len(res_found) == 0:
-            print("No power meter found")
             raise Exception(
                 "No power meter found. Check you are not connected in another program, eg. Thorlabs Optical Power Meter software."
             )
@@ -53,12 +63,15 @@ def main():
         meter.write("SENS:POW:UNIT W")  # watts
         meter.write("SENS:AVER:1000")
 
+        # Get the name of the waveplate
+        waveplate_name = input("Enter the name of the waveplate: ")
+
         timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
         print("Calibration timestamp: " + timestamp)
 
-        run_calibration("waveplate", meter, timestamp)
-        plot_calibration("waveplate", timestamp)
-        print(fit_calibration("waveplate", timestamp))
+        run_calibration(waveplate_name, meter, timestamp)
+        plot_calibration(waveplate_name, timestamp)
+        print(fit_calibration(waveplate_name, timestamp))
 
     except Exception as e:
         print("Error: " + str(e))
